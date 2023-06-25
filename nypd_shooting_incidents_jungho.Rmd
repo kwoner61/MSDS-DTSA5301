@@ -1,0 +1,149 @@
+---
+title: "Shooting Incidents Reported by NYPD"
+author: "Jungho Kwon"
+date: "2023-06-08"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Let's analyze the shooting incidents reported by the NYPD from January 2006 to December 2022.
+
+The data is obtained from the City of New York ([opendata.cityofnewyork.us](https://opendata.cityofnewyork.us/)).
+
+\vspace{2cm}
+
+## Import and clean the data
+```{r read_data, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(lubridate)
+
+url_in <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+nypd_data = read_csv(url_in)
+nypd_data <- nypd_data %>%
+  select(-c(Latitude, Longitude, X_COORD_CD, Y_COORD_CD, Lon_Lat, JURISDICTION_CODE )) %>%
+  mutate(OCCUR_DATE = mdy(OCCUR_DATE)) %>%
+  replace_na(list(LOCATION_DESC = 'NONE')) %>%
+  replace_na(list(PERP_AGE_GROUP = 'UNKNOWN', PERP_SEX='UNKNOWN', PERP_RACE='UNKNOWN'))
+```
+
+## Group by month
+```{r group_by_month, message=FALSE, warning=FALSE}
+by_month <- nypd_data %>% 
+  group_by(month = floor_date(OCCUR_DATE, "month")) %>% 
+  distinct(month, INCIDENT_KEY) %>% 
+  select(month, INCIDENT_KEY) %>% 
+  tally()
+```
+
+## Plot the number of incidents over time
+```{r plot_group_by_month, message=FALSE, warning=FALSE}
+by_month %>% ggplot(aes(x = month, y = n)) +
+  geom_point(aes(color="Number of incidents in a month")) +
+  theme(legend.position = "bottom") +
+  xlab("Time") + ylab("Number of incidents") + 
+  labs(title = "Number of shooting incidents reported by NYPD for each month")
+```
+
+## Create a linear model and prediction
+```{r plot_linear_model, message=FALSE, warning=FALSE}
+mod <- lm(n ~ month, data = by_month)
+
+by_month_pred <- by_month %>% 
+  mutate(pred = predict(mod))
+
+by_month_pred %>%
+  ggplot() +
+  geom_point(aes(x = month, y = n), color="red") +
+  geom_line(aes(x = month, y = pred), color="black") +
+  theme(legend.position = "bottom") +
+  xlab("Time") + ylab("Number of incidents") + 
+  labs(title = "Number of shooting incidents reported by NYPD for each month")
+```
+
+The black line on the graph is a prediction calculated from the linear model of time and the number of shooting incidents.
+
+\newpage
+
+## Group by each borough
+```{r by_boro, message=FALSE, warning=FALSE}
+by_month_BRONX <- nypd_data %>%
+  filter(BORO == "BRONX") %>%
+  group_by(month = floor_date(OCCUR_DATE, "month"), BORO) %>% 
+  distinct(month, INCIDENT_KEY, BORO) %>% 
+  select(month, INCIDENT_KEY, BORO) %>% 
+  tally()
+  
+by_month_BROOKLYN <- nypd_data %>%
+  filter(BORO == "BROOKLYN") %>%
+  group_by(month = floor_date(OCCUR_DATE, "month"), BORO) %>% 
+  distinct(month, INCIDENT_KEY, BORO) %>% 
+  select(month, INCIDENT_KEY, BORO) %>% 
+  tally()
+
+by_month_MANHATTAN <- nypd_data %>%
+  filter(BORO == "MANHATTAN") %>%
+  group_by(month = floor_date(OCCUR_DATE, "month"), BORO) %>% 
+  distinct(month, INCIDENT_KEY, BORO) %>% 
+  select(month, INCIDENT_KEY, BORO) %>% 
+  tally()
+
+by_month_QUEENS <- nypd_data %>%
+  filter(BORO == "QUEENS") %>%
+  group_by(month = floor_date(OCCUR_DATE, "month"), BORO) %>% 
+  distinct(month, INCIDENT_KEY, BORO) %>% 
+  select(month, INCIDENT_KEY, BORO) %>% 
+  tally()
+
+by_month_STATEN_ISLAND <- nypd_data %>%
+  filter(BORO == "STATEN ISLAND") %>%
+  group_by(month = floor_date(OCCUR_DATE, "month"), BORO) %>% 
+  distinct(month, INCIDENT_KEY, BORO) %>% 
+  select(month, INCIDENT_KEY, BORO) %>% 
+  tally()
+```
+
+## Plot the number of incidents for each borough over time
+```{r plot_by_boro, message=FALSE, warning=FALSE}
+ggplot() +
+  geom_point(data = by_month_BRONX, aes(x = month, y = n, color = "Bronx")) +
+  geom_point(data = by_month_BROOKLYN, aes(x = month, y = n, color = "Brooklyn")) +
+  geom_point(data = by_month_MANHATTAN, aes(x = month, y = n, color = "Manhattan")) +
+  geom_point(data = by_month_QUEENS, aes(x = month, y = n, color = "Queens")) +
+  geom_point(data = by_month_STATEN_ISLAND, aes(x = month, y = n, color = "Staten Island")) +
+  scale_y_log10() +
+  theme(legend.position = "bottom") +
+  xlab("Time") + ylab("Number of incidents") + 
+  labs(title = "Number of shooting incidents reported by NYPD for each borough")
+```
+
+
+# Conclusion
+
+Looking at the linear model, it seemed as if the number of shooting incidents was decreasing over time (in
+New York from 2006 to 2020). In 2020, there is an increase in the number of shooting incidents.
+
+Some questions come to mind
+
+* Did COVID and the initial lockdowns play a role in the increase of shooting incidents in 2020? For
+me, the year 2020 has been associated with the COVID outbreak and initial lockdowns. I need to be
+careful in asking such questions, as there is not enough data / variables.
+* What is the population density in each boroughs of New York?
+* How does each precinct report on the incidents?
+
+I have a bias, where I think people who live in cities tend to be more uptight (thus, more conflicts) compared
+to those who live out side the city (Staten Island). This could make me think incorrectly that this is the
+reason why there are more shooting incidents reported near the city center (Manhattan, Queens, Bronx,
+Brooklyn) vs Staten Island. However, we would need to look at the population density before comparing
+the number of incidents between boroughs.
+
+\newpage
+
+## Session Info for debugging
+```{r session_info, echo=TRUE}
+sessionInfo()
+```
